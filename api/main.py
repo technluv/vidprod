@@ -15,7 +15,7 @@ import structlog
 
 from api.core.config import settings
 from api.core.logging import setup_logging
-from api.routers import upload, health, jobs
+from api.routers import upload, health, jobs, download
 from shared.database.connection import init_db
 
 # Setup structured logging
@@ -80,6 +80,7 @@ app.mount("/static", StaticFiles(directory="frontend"), name="static")
 app.include_router(health.router, tags=["health"])
 app.include_router(upload.router, prefix="/api/v1", tags=["upload"])
 app.include_router(jobs.router, prefix="/api/v1", tags=["jobs"])
+app.include_router(download.router, prefix="/api/v1", tags=["download"])
 
 # Mount Prometheus metrics endpoint
 metrics_app = make_asgi_app()

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VidProd - Record Video</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .video-container {
+            display: flex;
+            gap: 20px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .video-box {
+            text-align: center;
+        }
+        
+        video {
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+            border-radius: 8px;
+            background: #000;
+        }
+        
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .record-btn {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+        }
+        
+        .record-btn:hover {
+            background: #b91c1c;
+        }
+        
+        .record-btn.recording {
+            background: #ef4444;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        .download-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .download-section.show {
+            display: block;
+        }
+        
+        .video-list {
+            margin-top: 20px;
+        }
+        
+        .video-item {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .download-btn {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        
+        .download-btn:hover {
+            background: #059669;
+        }
+        
+        .timer {
+            font-size: 24px;
+            font-weight: bold;
+            color: #dc2626;
+            margin: 10px 0;
+        }
+        
+        .settings {
+            background: #f9fafb;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .setting-group {
+            margin: 10px 0;
+        }
+        
+        .setting-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        .setting-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>VidProd - Record Video</h1>
+            <p>Record videos with your camera, apply eye gaze correction, and download 1-minute clips</p>
+        </header>
+
+        <div class="settings">
+            <h3>Recording Settings</h3>
+            <div class="setting-group">
+                <label for="camera-select">Camera:</label>
+                <select id="camera-select">
+                    <option value="">Loading cameras...</option>
+                </select>
+            </div>
+            <div class="setting-group">
+                <label for="quality-select">Quality:</label>
+                <select id="quality-select">
+                    <option value="720">720p (Recommended)</option>
+                    <option value="1080">1080p</option>
+                    <option value="480">480p (Low bandwidth)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="video-container">
+            <div class="video-box">
+                <h3>Camera Preview</h3>
+                <video id="preview" autoplay muted playsinline></video>
+                <div class="timer" id="timer">00:00</div>
+            </div>
+            <div class="video-box">
+                <h3>Recorded Video</h3>
+                <video id="recorded" controls></video>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="start-camera" class="btn">
+                📷 Start Camera
+            </button>
+            <button id="record-btn" class="record-btn" disabled>
+                <span class="record-indicator">⏺️</span>
+                <span class="record-text">Start Recording</span>
+            </button>
+            <button id="process-btn" class="btn btn-primary" disabled>
+                🎬 Process Video
+            </button>
+        </div>
+
+        <div id="upload-status" class="upload-status"></div>
+
+        <div id="download-section" class="download-section">
+            <h3>📥 Processed Videos</h3>
+            <p>Your videos have been processed with eye gaze correction and split into 1-minute clips:</p>
+            <div id="video-list" class="video-list">
+                <!-- Processed videos will appear here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="js/webrtc-recorder.js"></script>
+</body>
+</html>

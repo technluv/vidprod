@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     
     # Storage settings
     TEMP_STORAGE_PATH: str = Field(default="/data/temp", description="Temporary storage path")
+    PROCESSED_PATH: str = Field(default="/data/processed", description="Processed files storage path")
     DB_PATH: str = Field(default="/data/db/vidprod.db", description="SQLite database path")
     CLEANUP_INTERVAL_HOURS: int = Field(default=1, description="Cleanup interval in hours")
     FILE_RETENTION_HOURS: int = Field(default=24, description="File retention period in hours")
