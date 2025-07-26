@@ -1,0 +1,271 @@
+name: Deploy to Fly.io
+
+on:
+  push:
+    branches: [ main, production ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: |
+          frontend/package-lock.json
+          tests/package-lock.json
+    
+    - name: Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r backend/requirements.txt
+        pip install pytest pytest-cov pytest-asyncio
+    
+    - name: Install Node dependencies
+      run: |
+        cd tests
+        npm ci
+        npx playwright install --with-deps
+    
+    - name: Run Python tests
+      run: |
+        cd backend
+        pytest tests/ -v --cov=app --cov-report=xml --cov-report=term
+      
+    - name: Run E2E tests
+      run: |
+        cd tests
+        npm run test:ci
+      env:
+        CI: true
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: |
+          backend/coverage.xml
+          tests/playwright-report/
+          tests/test-results.json
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./backend/coverage.xml
+        flags: backend
+        name: backend-coverage
+
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to registry
+      uses: docker/login-action@v3
+      with:
+        registry: registry.fly.io
+        username: x
+        password: ${{ secrets.FLY_API_TOKEN }}
+    
+    - name: Get commit SHA
+      id: sha
+      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: |
+          registry.fly.io/vidprod-app:latest
+          registry.fly.io/vidprod-app:${{ steps.sha.outputs.sha_short }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          BUILD_DATE=${{ steps.date.outputs.date }}
+          VERSION=${{ steps.sha.outputs.sha_short }}
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    environment:
+      name: staging
+      url: https://vidprod-staging.fly.dev
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Fly CLI
+      uses: superfly/flyctl-actions/setup-flyctl@master
+    
+    - name: Deploy to staging
+      run: |
+        flyctl deploy --remote-only \
+          --app vidprod-staging \
+          --image registry.fly.io/vidprod-app:latest \
+          --strategy rolling
+    
+    - name: Run smoke tests
+      run: |
+        chmod +x tests/smoke-tests.sh
+        ./tests/smoke-tests.sh https://vidprod-staging.fly.dev
+    
+    - name: Health check
+      run: |
+        chmod +x tests/health-check.sh
+        ./tests/health-check.sh https://vidprod-staging.fly.dev
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://vidprod.fly.dev
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Fly CLI
+      uses: superfly/flyctl-actions/setup-flyctl@master
+    
+    - name: Deploy to production
+      run: |
+        flyctl deploy --remote-only \
+          --app vidprod-app \
+          --image registry.fly.io/vidprod-app:latest \
+          --strategy rolling
+    
+    - name: Run smoke tests
+      run: |
+        chmod +x tests/smoke-tests.sh
+        ./tests/smoke-tests.sh https://vidprod.fly.dev
+    
+    - name: Health check
+      run: |
+        chmod +x tests/health-check.sh
+        ./tests/health-check.sh https://vidprod.fly.dev
+    
+    - name: Create release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.run_number }}
+        release_name: Release v${{ github.run_number }}
+        body: |
+          Automated production deployment
+          Commit: ${{ github.sha }}
+        draft: false
+        prerelease: false
+
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    if: failure() && (needs.deploy-staging.result == 'failure' || needs.deploy-production.result == 'failure')
+    needs: [deploy-staging, deploy-production]
+    
+    steps:
+    - name: Setup Fly CLI
+      uses: superfly/flyctl-actions/setup-flyctl@master
+    
+    - name: Rollback staging
+      if: needs.deploy-staging.result == 'failure'
+      run: |
+        flyctl releases list --app vidprod-staging -j | \
+        jq -r '.[1].Version' | \
+        xargs flyctl deploy --app vidprod-staging --image
+    
+    - name: Rollback production
+      if: needs.deploy-production.result == 'failure'
+      run: |
+        flyctl releases list --app vidprod-app -j | \
+        jq -r '.[1].Version' | \
+        xargs flyctl deploy --app vidprod-app --image
+    
+    - name: Notify rollback
+      uses: 8398a7/action-slack@v3
+      with:
+        status: custom
+        custom_payload: |
+          {
+            text: "⚠️ Deployment rollback triggered",
+            attachments: [{
+              color: 'warning',
+              fields: [
+                { title: 'Environment', value: '${{ needs.deploy-staging.result == "failure" && "staging" || "production" }}', short: true },
+                { title: 'Workflow', value: '${{ github.workflow }}', short: true },
+                { title: 'Commit', value: '${{ github.sha }}', short: false }
+              ]
+            }]
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+      if: always()
+
+  notify:
+    name: Notify Results
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [test, build, deploy-staging, deploy-production]
+    
+    steps:
+    - name: Send Slack notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        text: |
+          Deployment ${{ job.status == 'success' && 'succeeded' || 'failed' }}
+          Environment: ${{ github.event_name == 'pull_request' && 'staging' || 'production' }}
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+      if: always()

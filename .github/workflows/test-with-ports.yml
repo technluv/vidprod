@@ -1,0 +1,63 @@
+name: Test with Port Management
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        npm ci
+        pip install -r requirements.txt
+    
+    - name: Start services
+      run: |
+        docker-compose up -d
+        sleep 10  # Wait for services to start
+    
+    # Port management for Codespaces (if running in Codespace)
+    - name: Open ports for testing (Codespaces)
+      if: env.CODESPACE_NAME != ''
+      run: |
+        gh codespace ports visibility 3000:public -c $CODESPACE_NAME || true
+        gh codespace ports visibility 8000:public -c $CODESPACE_NAME || true
+    
+    - name: Run E2E tests
+      run: |
+        npm run test:e2e
+      env:
+        BASE_URL: ${{ env.CODESPACE_NAME && format('https://{0}-8000.{1}', env.CODESPACE_NAME, env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN) || 'http://localhost:8000' }}
+    
+    # Secure ports after testing
+    - name: Secure ports after testing (Codespaces)
+      if: always() && env.CODESPACE_NAME != ''
+      run: |
+        gh codespace ports visibility 3000:private -c $CODESPACE_NAME || true
+        gh codespace ports visibility 8000:private -c $CODESPACE_NAME || true
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: |
+          test-results/
+          coverage/

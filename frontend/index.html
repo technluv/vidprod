@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VidProd - Video Upload</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .subtitle {
+            color: #7f8c8d;
+            margin-bottom: 30px;
+        }
+
+        .upload-area {
+            border: 2px dashed #cbd5e0;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            background: #f8fafc;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            border-color: #4299e1;
+            background: #ebf8ff;
+        }
+
+        .upload-area.dragging {
+            border-color: #4299e1;
+            background: #bee3f8;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        .upload-text {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        .upload-hint {
+            color: #718096;
+            font-size: 14px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-info {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .file-name {
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            background: #e2e8f0;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-fill {
+            background: #4299e1;
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            font-size: 14px;
+            color: #718096;
+        }
+
+        .form-section {
+            margin-top: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #4a5568;
+        }
+
+        input[type="text"],
+        input[type="url"],
+        select {
+            width: 100%;
+            padding: 10px 15px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="text"]:focus,
+        input[type="url"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #4299e1;
+        }
+
+        .checkbox-group {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .upload-button {
+            background: #4299e1;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            width: 100%;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .upload-button:hover {
+            background: #3182ce;
+        }
+
+        .upload-button:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .status.success {
+            background: #c6f6d5;
+            color: #276749;
+            border: 1px solid #9ae6b4;
+        }
+
+        .status.error {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #fc8181;
+        }
+
+        .job-link {
+            color: #4299e1;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .job-link:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .upload-area {
+                padding: 30px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>VidProd Upload</h1>
+        <p class="subtitle">Upload your video for automatic processing and distribution</p>
+
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📹</div>
+            <div class="upload-text">Drag & drop your video here</div>
+            <div class="upload-hint">or click to browse (max 500MB)</div>
+            <input type="file" id="fileInput" accept=".mp4,.mov,.avi,.mkv">
+        </div>
+
+        <div class="file-info" id="fileInfo">
+            <div class="file-name" id="fileName"></div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">0% uploaded</div>
+        </div>
+
+        <form id="uploadForm" class="form-section" style="display: none;">
+            <div class="form-group">
+                <label for="webhookUrl">Webhook URL (optional)</label>
+                <input type="url" id="webhookUrl" placeholder="https://example.com/webhook">
+            </div>
+
+            <div class="form-group">
+                <label>Upload Platforms</label>
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="platform" value="tiktok">
+                        TikTok
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="platform" value="instagram">
+                        Instagram Reels
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="platform" value="youtube">
+                        YouTube Shorts
+                    </label>
+                </div>
+            </div>
+
+            <button type="submit" class="upload-button" id="uploadButton">
+                Start Processing
+            </button>
+        </form>
+
+        <div class="status" id="status"></div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const uploadForm = document.getElementById('uploadForm');
+        const uploadButton = document.getElementById('uploadButton');
+        const status = document.getElementById('status');
+
+        let selectedFile = null;
+
+        // Click to upload
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // File selection
+        fileInput.addEventListener('change', (e) => {
+            handleFileSelect(e.target.files[0]);
+        });
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragging');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragging');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragging');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect(files[0]);
+            }
+        });
+
+        function handleFileSelect(file) {
+            if (!file) return;
+
+            // Validate file type
+            const allowedTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska'];
+            if (!allowedTypes.includes(file.type) && !file.name.match(/\.(mp4|mov|avi|mkv)$/i)) {
+                showStatus('error', 'Please select a valid video file (MP4, MOV, AVI, or MKV)');
+                return;
+            }
+
+            // Validate file size (500MB)
+            const maxSize = 500 * 1024 * 1024;
+            if (file.size > maxSize) {
+                showStatus('error', 'File size exceeds 500MB limit');
+                return;
+            }
+
+            selectedFile = file;
+            fileName.textContent = file.name + ' (' + formatFileSize(file.size) + ')';
+            fileInfo.style.display = 'block';
+            uploadForm.style.display = 'block';
+            uploadButton.style.display = 'block';
+            status.style.display = 'none';
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Form submission
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (!selectedFile) {
+                showStatus('error', 'Please select a file');
+                return;
+            }
+
+            uploadButton.disabled = true;
+            uploadButton.textContent = 'Uploading...';
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            // Add webhook URL if provided
+            const webhookUrl = document.getElementById('webhookUrl').value;
+            if (webhookUrl) {
+                formData.append('webhook_url', webhookUrl);
+            }
+
+            // Add selected platforms
+            const platforms = Array.from(document.querySelectorAll('input[name="platform"]:checked'))
+                .map(cb => cb.value);
+            if (platforms.length > 0) {
+                formData.append('platforms', platforms.join(','));
+            }
+
+            try {
+                const xhr = new XMLHttpRequest();
+
+                // Track upload progress
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percentComplete = (e.loaded / e.total) * 100;
+                        progressFill.style.width = percentComplete + '%';
+                        progressText.textContent = Math.round(percentComplete) + '% uploaded';
+                    }
+                });
+
+                xhr.addEventListener('load', () => {
+                    if (xhr.status === 200) {
+                        const response = JSON.parse(xhr.responseText);
+                        showStatus('success', 
+                            `Upload successful! Job ID: <a href="/api/v1/jobs/${response.id}" class="job-link">${response.id}</a>`
+                        );
+                        resetForm();
+                    } else {
+                        const error = JSON.parse(xhr.responseText);
+                        showStatus('error', 'Upload failed: ' + (error.detail || 'Unknown error'));
+                    }
+                    uploadButton.disabled = false;
+                    uploadButton.textContent = 'Start Processing';
+                });
+
+                xhr.addEventListener('error', () => {
+                    showStatus('error', 'Upload failed: Network error');
+                    uploadButton.disabled = false;
+                    uploadButton.textContent = 'Start Processing';
+                });
+
+                xhr.open('POST', '/api/v1/upload');
+                xhr.send(formData);
+
+            } catch (error) {
+                showStatus('error', 'Upload failed: ' + error.message);
+                uploadButton.disabled = false;
+                uploadButton.textContent = 'Start Processing';
+            }
+        });
+
+        function showStatus(type, message) {
+            status.className = 'status ' + type;
+            status.innerHTML = message;
+            status.style.display = 'block';
+        }
+
+        function resetForm() {
+            selectedFile = null;
+            fileInput.value = '';
+            fileInfo.style.display = 'none';
+            uploadForm.style.display = 'none';
+            uploadButton.style.display = 'none';
+            progressFill.style.width = '0%';
+            progressText.textContent = '0% uploaded';
+            document.getElementById('webhookUrl').value = '';
+            document.querySelectorAll('input[name="platform"]:checked').forEach(cb => cb.checked = false);
+        }
+    </script>
+</body>
+</html>
