@@ -1,5 +1,10 @@
 # VidProd - Automated Video Production & Upload System
 
+[![GitHub](https://img.shields.io/github/license/technluv/vidprod)](https://github.com/technluv/vidprod)
+[![GitHub Stars](https://img.shields.io/github/stars/technluv/vidprod)](https://github.com/technluv/vidprod)
+
+📺 **Repository**: [https://github.com/technluv/vidprod](https://github.com/technluv/vidprod)
+
 VidProd is a lightweight, async video processing system designed for automated video production with eye gaze correction and multi-platform distribution. Optimized for deployment on Fly.io with minimal resource usage.
 
 ## Features
