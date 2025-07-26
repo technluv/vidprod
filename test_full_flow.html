@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>VidProd Test - Full Flow</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>VidProd Test - Full Flow</h1>
+        
+        <div class="test-section">
+            <h2>1. Test Backend Health</h2>
+            <button onclick="testHealth()">Test Health Endpoint</button>
+            <div id="health-result" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>2. Test Video Upload</h2>
+            <input type="file" id="video-file" accept="video/*">
+            <button onclick="testUpload()">Upload Video</button>
+            <div id="upload-result" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>3. Test Job Status</h2>
+            <input type="text" id="job-id" placeholder="Enter Job ID">
+            <button onclick="testJobStatus()">Check Status</button>
+            <div id="status-result" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>4. Test Download</h2>
+            <div id="download-links"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>5. WebRTC Recording</h2>
+            <a href="/record.html" target="_blank">
+                <button>Open WebRTC Recorder</button>
+            </a>
+            <p>Test the full recording flow in a separate window</p>
+        </div>
+    </div>
+    
+    <script>
+        let currentJobId = null;
+        
+        async function testHealth() {
+            const result = document.getElementById('health-result');
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                result.className = 'result success';
+                result.textContent = 'Health Check: ' + JSON.stringify(data, null, 2);
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        async function testUpload() {
+            const fileInput = document.getElementById('video-file');
+            const result = document.getElementById('upload-result');
+            
+            if (!fileInput.files[0]) {
+                result.className = 'result error';
+                result.textContent = 'Please select a video file';
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('video', fileInput.files[0]);
+            formData.append('apply_gaze_correction', 'true');
+            formData.append('split_duration', '60');
+            
+            try {
+                result.className = 'result info';
+                result.textContent = 'Uploading...';
+                
+                const response = await fetch('/api/v1/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                currentJobId = data.job_id;
+                document.getElementById('job-id').value = currentJobId;
+                
+                result.className = 'result success';
+                result.textContent = 'Upload Response: ' + JSON.stringify(data, null, 2);
+                
+                // Start polling for status
+                setTimeout(() => pollJobStatus(currentJobId), 2000);
+                
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        async function testJobStatus() {
+            const jobId = document.getElementById('job-id').value;
+            const result = document.getElementById('status-result');
+            
+            if (!jobId) {
+                result.className = 'result error';
+                result.textContent = 'Please enter a Job ID';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/v1/jobs/${jobId}`);
+                const data = await response.json();
+                
+                result.className = 'result ' + (data.status === 'completed' ? 'success' : 'info');
+                result.textContent = 'Job Status: ' + JSON.stringify(data, null, 2);
+                
+                if (data.status === 'completed' && data.result) {
+                    displayDownloadLinks(data.result.processed_videos);
+                }
+                
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        async function pollJobStatus(jobId) {
+            const result = document.getElementById('status-result');
+            
+            try {
+                const response = await fetch(`/api/v1/jobs/${jobId}`);
+                const data = await response.json();
+                
+                result.className = 'result info';
+                result.textContent = `Processing: ${data.progress}% complete\n\n` + JSON.stringify(data, null, 2);
+                
+                if (data.status === 'completed') {
+                    result.className = 'result success';
+                    displayDownloadLinks(data.result.processed_videos);
+                } else if (data.status === 'failed') {
+                    result.className = 'result error';
+                } else {
+                    // Continue polling
+                    setTimeout(() => pollJobStatus(jobId), 2000);
+                }
+                
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        function displayDownloadLinks(videos) {
+            const container = document.getElementById('download-links');
+            container.innerHTML = '<h3>Download Processed Videos:</h3>';
+            
+            videos.forEach((video, index) => {
+                const link = document.createElement('div');
+                link.innerHTML = `
+                    <p>Video ${index + 1} (${video.duration}s): 
+                        <a href="${video.download_url}" download>Download</a>
+                    </p>
+                `;
+                container.appendChild(link);
+            });
+        }
+        
+        // Test health on load
+        window.onload = () => {
+            testHealth();
+        };
+    </script>
+</body>
+</html>

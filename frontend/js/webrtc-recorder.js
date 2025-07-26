@@ -188,7 +188,7 @@ class VideoRecorder {
         const formData = new FormData();
         formData.append('video', this.recordedBlob, 'recording.webm');
         formData.append('apply_gaze_correction', 'true');
-        formData.append('split_duration', '60'); // 1-minute clips
+        formData.append('split_duration', '60'); // Split if longer than 60 seconds
         
         try {
             const response = await fetch('/api/v1/upload', {
